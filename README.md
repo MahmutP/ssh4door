@@ -78,4 +78,4 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 999 user@<hos
 
 ## License
 
-MIT
+Apache 2.0
